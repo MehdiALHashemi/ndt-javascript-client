@@ -239,11 +239,9 @@ function NDTjs(server, port, path, callbacks) {
 		var state = "WAIT_FOR_TEST_PREPARE",
 			server_port,
 			test_connection,
-			transmitted_bytes = 0,
-			data_to_send = new Uint8Array(8192 - 4),
+			data_to_send = new Uint8Array(1048576),
 			test_start,
-			test_end,
-			our_c2s_rate;
+			test_end
 	
 		for (var i = 0; i < data_to_send.length; i += 1) {
 			// All the characters must be printable, and the printable range of
@@ -253,10 +251,9 @@ function NDTjs(server, port, path, callbacks) {
 	
 		// A while loop, encoded as a setTimeout callback.
 		function keep_sending_data() {
-			// Make sure the buffer is empty before we push more data in.
-			if ( test_connection.bufferedAmount == 0 ) {
+			// Refill the buffer if it gets too low
+			if ( test_connection.bufferedAmount < 8192 ) {
 				test_connection.send(data_to_send);
-				transmitted_bytes += 8192;
 			}
 			if (Date.now() / 1000 < test_start + 10) {
 				setTimeout(keep_sending_data, 0);
@@ -291,8 +288,6 @@ function NDTjs(server, port, path, callbacks) {
 			if (state === "WAIT_FOR_TEST_FINALIZE" && type === _this.msg_names.indexOf('TEST_FINALIZE')) {
 				_this.callbacks['onchange']('finished_c2s');
 				state = "DONE";
-				our_c2s_rate = 8 * transmitted_bytes / 1000 / (test_end - test_start);
-				_this.log_msg("C2S rate calculated by client: " + our_c2s_rate);
 				return "DONE";
 			}
 			_this.log_msg("C2S: State = " + state + " type = " + type + "(" + msg_name[type] + ") message = ", body);
