@@ -392,8 +392,10 @@ NDTjs.prototype.ndt_s2c_test = function (ndt_socket) {
             if (test_end === undefined) {
                 test_end = Date.now() / 1000;
             }
-            // Calculation per spec, compared between client and server understanding.
-            _this.s2c_rate = (8 * received_bytes / 1000 / (test_end - test_start));
+            // Calculation per spec, compared between client and server
+            // understanding.
+            _this.s2c_rate = (8 * received_bytes / 1000 /
+                (test_end - test_start));
             _this.logger("S2C rate calculated by client: " + _this.s2c_rate);
             _this.logger("S2C rate calculated by server: " +
                 message_content.ThroughputValue);
@@ -556,15 +558,18 @@ NDTjs.prototype.start_test = function () {
                     throw _this.TestFailureException('Server terminated test ' +
                         'with SRV_QUEUE 9977');
                 }
-                _this.logger("Got SRV_QUEUE. Ignoring and waiting for MSG_LOGIN.");
-            } else if (message_type === _this.NDT_MESSAGES.indexOf('MSG_LOGIN')) {
+                _this.logger('Got SRV_QUEUE. Ignoring and waiting for ' +
+                    'MSG_LOGIN.');
+            } else if (message_type ===
+                    _this.NDT_MESSAGES.indexOf('MSG_LOGIN')) {
                 if (message_content.msg[0] !== "v") {
                     _this.logger("Bad msg " + message_content.msg);
                 }
                 state = "WAIT_FOR_TEST_IDS";
             } else {
-                error_message = "Expected type 1 (SRV_QUEUE) or 2 (MSG_LOGIN) but " +
-                    "got " + message_type + " (" + _this.NDT_MESSAGES[message_type] + ")";
+                error_message = 'Expected type 1 (SRV_QUEUE) or 2 (MSG_LOGIN)' +
+                    'but got ' + message_type + ' (' +
+                    _this.NDT_MESSAGES[message_type] + ')';
                 throw _this.TestFailureException(error_message);
             }
         } else if (state === "WAIT_FOR_TEST_IDS" &&
