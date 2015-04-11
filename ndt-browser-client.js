@@ -19,8 +19,6 @@ function NDTjs(server, server_port, server_path, callbacks) {
     this.web100_results = {};
     this.SEND_BUFFER_SIZE = 1048576;
 
-    this.check_browser_support();
-
     // Someone may want to run this test without callbacks (perhaps for
     // debugging). Since the callbacks are referenced in various places, just
     // create some empty ones if none were specified.
@@ -75,7 +73,7 @@ NDTjs.prototype.logger = function (log_message, debugging) {
 
 NDTjs.prototype.check_browser_support = function () {
 
-    if (typeof WebSocket !== "function") {
+    if (window.WebSocket !== undefined && window.MozWebSocket !== undefined) {
         throw this.UnsupportedBrowser("No Websockets");
     }
     return true;
@@ -227,6 +225,7 @@ NDTjs.prototype.TestFailureException = function (message) {
 
 NDTjs.prototype.create_websocket = function (server_address, server_port,
     url_path, protocol) {
+
     var created_websocket = new WebSocket("ws://" + server_address + ":" +
         server_port + url_path, protocol);
     created_websocket.binaryType = 'arraybuffer';
@@ -496,6 +495,8 @@ NDTjs.prototype.start_test = function () {
     var tests_to_run = [];
     var _this = this;
 
+    this.check_browser_support();
+
     this.logger('Test started.  Waiting for connection to server...');
     this.callbacks.onstart(_this.server);
 
@@ -512,7 +513,6 @@ NDTjs.prototype.start_test = function () {
         */
         ndt_socket.send(_this.make_login_message(2 | 4 | 32));
         state = "LOGIN_SENT";
-        return;
     };
 
     ndt_socket.onmessage = function (response) {
