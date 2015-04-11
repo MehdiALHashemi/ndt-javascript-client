@@ -17,6 +17,7 @@ function NDTjs(server, server_port, server_path, callbacks) {
   this.server_path = server_path;
   this.c2s_rate = undefined;
   this.s2c_rate = undefined;
+  this.mlab_server = undefined;
   this.web100_results = {};
   
   this.SEND_BUFFER_SIZE = 1048576;
@@ -66,6 +67,34 @@ NDTjs.prototype.logger= function(log_message) {
   if (debugging == true) {
     console.log(log_message);
   }
+}
+
+/**
+ * Make an AJAX request to M-Lab NS for the closest NDT service.
+ * @returns {Object} JSON Object containing (city, country, fqdn,
+ *    ip [list: ipv6, ipv4], site, url, metro); 
+ *    Note: metro is not native to M-Lab NS
+ */
+
+NDTjs.prototype.find_ndt_server = function() {
+
+  var mlab_ns_request = new XMLHttpRequest();
+  var mlab_ns_url = "http://mlab-ns.appspot.com/ndt?format=json";
+  
+  mlab_ns_request.open("GET", mlab_ns_url, false);
+  mlab_ns_request.send();
+
+  if(mlab_ns_request.status == 200){
+    this.mlab_server = JSON.parse(mlab_ns_request.responseText);
+    this.mlab_server.metro = this.mlab_server.site.slice(0, 3)
+    this.logger('M-Lab NS lookup answer:' + this.mlab_server);
+  }
+  else {
+    this.mlab_server = undefined;
+    this.logger('M-Lab NS lookup failed.');
+  }
+  
+  return this.mlab_server;
 }
 
 /**
@@ -263,7 +292,6 @@ NDTjs.prototype.ndt_c2s_test = function() {
       msg_name[message_type] + ") message = ", message_content);
   };
 }
-
 
 /**
  * NDT's Server-to-Client (S2C) Download Test
