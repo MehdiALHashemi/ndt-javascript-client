@@ -6,32 +6,28 @@
 		<link rel="stylesheet" type="text/css" href="style.css"/>
 		<script src="http://d3js.org/d3.v3.min.js"></script>
 		<script src="ndt_d3.js"></script>
-		<script src="http://m-lab.github.io/ndt-javascript-client/ndt-browser-client.js"></script>
+		<script src="/ndt-browser-client.js"></script>
 		<script>
-	 		var server = "ndt.iupui.mlab2.nuq0t.measurement-lab.org";
+	 		var server = "utility.mlab.mlab4.iad04.measurement-lab.org";
 	  		var port = "7000";
 	   	 	var path = "/ndt_after_user_privacy_agreement";
-	   		var NDTjs = new NDTjs(server, port, path, window.NDTd3['callbacks']);
-
-			function toggle_debug(elem_id) {
-				var elem = document.getElementById(elem_id); 	
-				elem.style.display = elem.style.display != 'block' ? 'block' : 'none';
-			}
-			function toggle_details(elem_id) {
-				var elem = document.getElementById(elem_id); 	
-				elem.style.display = elem.style.display != 'block' ? 'block' : 'none';
-			}
-		</script>
+            var NDT_meter, NDT_client;
+            
+            function NDTmeter_setup() {
+                NDT_meter = new NDTmeter('#svg');
+                NDT_client = new NDTjs(server, port, path, NDT_meter);
+                NDT_meter.meter.on("click", function () {
+                    NDT_client.start_test();
+                });
+            }
+        </script>
 	</head>
-	<body onload="NDTd3_on_pageload()">
+	<body onload="NDTmeter_setup()">
 		<div id="container">
-			<div id="detail_links">
-				<a href="#debug" onclick="toggle_debug('debug')">Debug</a>
-			</div>
 			<div id="svg"></div>
-			<div id="debug">
-				<h3>DEBUG</h3>
-			</div>
 		</div>
 	</body>
 </html>
+
+
+

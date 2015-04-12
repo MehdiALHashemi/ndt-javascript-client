@@ -1,191 +1,216 @@
-window.NDTd3 = {
-	'object': undefined,
-	'meter': undefined,
-	'arc': undefined,
-	'state': undefined,
-	'time_switched': undefined,
-	'callbacks': {
-		'onstart': NDTd3_on_start, 
-		'onchange': NDTd3_on_change, 
-		'onfinish': NDTd3_on_completion, 
-		'onerror': NDTd3_on_error
-	}
+/*jslint bitwise: true, browser: true, nomen: true, vars: true */
+/*global Uint8Array, d3 */
+
+'use strict';
+
+function NDTmeter(body_element) {
+    this.meter = undefined;
+    this.arc = undefined;
+    this.state = undefined;
+    this.body_element = body_element;
+    this.time_switched = undefined;
+
+    this.callbacks = {
+        'onstart': this.onstart,
+        'onchange': this.onchange,
+        'onfinish': this.onfinish,
+        'onerror': this.onerror
+    };
+
+    this.NDT_STATUS_LABELS = {
+        'preparing_s2c': 'Preparing Download',
+        'preparing_c2s': 'Preparing Upload',
+        'running_s2c': 'Measuring Download',
+        'running_c2s': 'Measuring Upload',
+        'finished_s2c': 'Finished Download',
+        'finished_c2s': 'Finished Upload',
+        'preparing_meta': 'Preparing Metadata',
+        'running_meta': 'Sending Metadata',
+        'finished_meta': 'Finished Metadata',
+        'finished_all': 'Complete'
+    };
+
+    this.create();
 }
 
-function NDTd3_on_pageload() {
+NDTmeter.prototype.update_display = function (status, information) {
+    d3.select('text.status').text(status);
+    d3.select('text.information').text(information);
+    return;
+};
 
-	var width = +d3.select("#svg").style("width").replace(/px/, ""), 
-		height = +d3.select("#svg").style("height").replace(/px/, ""), 
-		twoPi = 2 * Math.PI;
-	var innerRad = width * .3,
-		outerRad = width * .36;
+NDTmeter.prototype.create = function () {
 
-	var svg = d3.select("#svg").append("svg")
-		.attr("width", width)
-		.attr("height", height)
-		.append("g")
-		.attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+    var width = d3.select(this.body_element).style("width").replace(/px/, '');
+    var height = d3.select(this.body_element).style("height").replace(/px/, '');
+    var twoPi = 2 * Math.PI;
+    var innerRad = (width * 0.3);
+    var outerRad = (width * 0.36);
 
-	window.NDTd3['arc'] = d3.svg.arc()
-		.startAngle(0)
-		.endAngle(0)
-		.innerRadius(innerRad)
-		.outerRadius(outerRad);
-	window.NDTd3['meter'] = svg.append("g")
-		.attr("id", "progress-meter");
-	window.NDTd3['meter'].append("path").attr("class", "background").attr("d", window.NDTd3['arc'].endAngle(twoPi));
-	window.NDTd3['meter'].append("path").attr("class", "foreground");
-	window.NDTd3['meter'].append("text")
-		.attr("text-anchor", "middle")
-		.attr("dy", "0em")
-		.attr("class", "information")
-		.text("Initializing");
+    var svg = d3.select(this.body_element).append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g")
+        .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
 
-	NDTd3_reset_meter();
-	d3.select('text.status').text('Start Test');	
-	window.NDTd3['meter'].on("click", NDTd3_on_click);
-	
-	d3.selectAll("#progress-meter text").classed("ready", true)
-	d3.selectAll("#progress-meter .foreground").classed("complete", false)
-	d3.selectAll("#progress-meter").classed("progress-error", false)
+    this.arc = d3.svg.arc()
+        .startAngle(0)
+        .endAngle(0)
+        .innerRadius(innerRad)
+        .outerRadius(outerRad);
+    this.meter = svg.append("g")
+        .attr("id", "progress-meter");
+    this.meter.append("path")
+        .attr("class", "background")
+        .attr("d", this.arc.endAngle(twoPi));
+    this.meter.append("path").attr("class", "foreground");
+    this.meter.append("text")
+        .attr("text-anchor", "middle")
+        .attr("dy", "0em")
+        .attr("class", "information")
+        .text("Initializing");
 
-}
+    this.reset_meter();
+    this.update_display('Start Test', '');
 
-function NDTd3_on_start(server) {
-	d3.select('text.status').text('Connecting');	
-	d3.select('text.information').text('(' + server.replace('.measurement-lab.org','') + ')');	
-}
+    d3.selectAll("#progress-meter text").classed("ready", true);
+    d3.selectAll("#progress-meter .foreground").classed("complete", false);
+    d3.selectAll("#progress-meter").classed("progress-error", false);
 
-function NDTd3_on_click() {
-	window.NDTjs.ndt_coordinator();
-}
+    return;
+};
 
-function NDTd3_reset_meter() {
-	d3.selectAll('#progress-meter text').remove();
-	
-	window.NDTd3['meter'].append("text")
-		.attr("text-anchor", "middle")
-		.attr("dy", "0em")
-		.attr("class", "status");
-	window.NDTd3['meter'].append("text")
-		.attr("text-anchor", "middle")
-		.attr("dy", "1.55em")
-		.attr("class", "information")
+NDTmeter.prototype.onstart = function (server) {
+    this.reset_meter();
+    var server_name = '(' + server.replace('.measurement-lab.org', '') + ')';
+    this.update_display('Connecting', server_name);
+};
 
-	d3.select('#progress-meter').classed('progress-complete', false);
-	d3.selectAll("#progress-meter text").classed("ready", true)
-}
+NDTmeter.prototype.onchange = function (returned_message) {
+    var _this = this;
 
-function NDTd3_on_change(returned_message) {
-	var ndt_status_labels = {
-		'preparing_s2c': 'Preparing Download',
-		'preparing_c2s': 'Preparing Upload',
-		'running_s2c': 'Measuring Download',
-		'running_c2s': 'Measuring Upload',
-		'finished_s2c': 'Finished Download',
-		'finished_c2s': 'Finished Upload',
-		'preparing_meta': 'Preparing Metadata',
-		'running_meta': 'Sending Metadata',
-		'finished_meta': 'Finished Metadata',
-		'finished_all': 'Complete'
-	}
-	window.NDTd3['state'] = returned_message;
-	window.NDTd3['time_switched'] = new Date().getTime();
-		
-	d3.select('text.status').text(ndt_status_labels[returned_message]);
-	d3.timer(NDTd3_on_progress);		
-}
+    this.state = returned_message;
+    this.time_switched = new Date().getTime();
+    this.update_display(this.NDT_STATUS_LABELS[returned_message], '');
 
-function NDTd3_on_progress() {
-	var origin = 0,
-		progress = 0,
-		twoPi = 2 * Math.PI,
-		current_message = window.NDTd3['state'],
-		time_in_progress = new Date().getTime() - window.NDTd3['time_switched'];
-	
-	if (current_message == "running_s2c" || current_message == "running_c2s") {
-	
-		if (current_message == "running_c2s" || current_message == "running_s2c") {
-			progress = twoPi * (time_in_progress/10000);
-		}
-		else {
-			window.NDTd3['time_switched'] = new Date().getTime();
-			progress = 0;
-		}
-		
-		if (current_message == "running_c2s") {
-			progress = twoPi + -1 * progress					
-			end_angle = window.NDTd3['arc'].endAngle(twoPi);
-			start_angle = window.NDTd3['arc'].startAngle(progress);
-		}
-		else {
-			end_angle = window.NDTd3['arc'].endAngle(progress);
-			start_angle = window.NDTd3['arc'].startAngle(origin);
-		}
-	} 
-	else if (current_message == "finished_all") {
-		end_angle = window.NDTd3['arc'].endAngle(twoPi);
-		start_angle = window.NDTd3['arc'].startAngle(origin);
-	}
-	else {
-		end_angle = window.NDTd3['arc'].endAngle(origin);
-		start_angle = window.NDTd3['arc'].startAngle(origin);	
-	}
-	d3.select('.foreground').attr("d", end_angle);
-	d3.select('.foreground').attr("d", start_angle);
-	
-	if (current_message == 'finished_all') {
-		return true;
-	}
-	
-	return false;	
-}
+    var meter_movement = function () {
+        _this.meter_movement();
+    };
 
-function NDTd3_on_completion() {
-	var result_string,
-		dy_offset = 1.55,
-		iteration = 0,
-		results = {
-			'Download': 's2c_rate',
-			'Upload': 'c2s_rate',
-			'MinRTT': 'min_rtt'
-		}
-	
-	for (result in results) {
-		if (result != 'MinRTT') {
-			result_string = Number(window.NDTjs[results[result]]/1000).toFixed(2)
-			result_string += ' Mbps';
-		}
-		else {
-			result_string = Number(window.NDTjs['web100vars'][result]).toFixed(2)
-			result_string += ' ms';
-		}
-		dy_current = dy_offset * (iteration + 1);
-		window.NDTd3['meter'].append("text")
-			.attr("class", "result_value")
-			.attr("text-anchor", "left")
-			.attr("dy", dy_current + "em")
-			.attr("dx", ".5em")
-			.attr('width', '400px')
-			.text(result_string)
+    d3.timer(meter_movement);
+};
 
-		window.NDTd3['meter'].append("text")
-			.attr("class", "result_label")
-			.attr("text-anchor", "right")
-			.attr("dy", dy_current + "em")
-			.attr("dx", "-5em")
-			.attr('width', '400px')
-			.text(result)
-		iteration++;
-	};
-	d3.selectAll("#progress-meter .foreground").classed("complete", true);
-	d3.selectAll("#progress-meter text.status").attr("dy", "-50px");
-	d3.selectAll("#progress-meter text.information").attr("dy", "-20px");
-}
+NDTmeter.prototype.onfinish = function (passed_results) {
+    var result_string,
+        dy_current,
+        metric_name;
+    var dy_offset = 1.55;
+    var iteration = 0;
+    var results_to_display = {
+        's2c_rate': 'Download',
+        'c2s_rate': 'Upload',
+        'MinRTT': 'Latency'
+    };
 
-function NDTd3_on_error(error_message) {
-	d3.timer.flush();
-	d3.selectAll("#progress-meter").classed("progress-error", true);
-	d3.select('text.status').text('Error!');
-	d3.select('text.information').text(error_message);
-}
+    for (metric_name in results_to_display) {
+        if (results_to_display.hasOwnProperty(metric_name)  &&
+                passed_results.hasOwnProperty(metric_name)) {
+
+            if (metric_name !== 'MinRTT') {
+                result_string = Number(passed_results[metric_name] / 1000).toFixed(2);
+                result_string += ' Mbps';
+            } else {
+                result_string = Number(passed_results[metric_name]).toFixed(2);
+                result_string += ' ms';
+            }
+
+            dy_current = dy_offset * (iteration + 1);
+            this.meter.append("text")
+                .attr("class", "result_value")
+                .attr("text-anchor", "left")
+                .attr("dy", dy_current + "em")
+                .attr("dx", ".5em")
+                .attr('width', '400px')
+                .text(result_string);
+
+            this.meter.append("text")
+                .attr("class", "result_label")
+                .attr("text-anchor", "right")
+                .attr("dy", dy_current + "em")
+                .attr("dx", "-5em")
+                .attr('width', '400px')
+                .text(results_to_display[metric_name]);
+            iteration += 1;
+        }
+    }
+
+    d3.selectAll("#progress-meter .foreground").classed("complete", true);
+    d3.selectAll("#progress-meter text.status").attr("dy", "-50px");
+    d3.selectAll("#progress-meter text.information").attr("dy", "-20px");
+};
+
+NDTmeter.prototype.onerror = function (error_message) {
+    d3.timer.flush();
+    d3.selectAll("#progress-meter").classed("progress-error", true);
+    this.update_display('Error!', error_message);
+};
+
+NDTmeter.prototype.reset_meter = function () {
+    d3.selectAll('#progress-meter text').remove();
+
+    this.meter.append("text")
+        .attr("text-anchor", "middle")
+        .attr("dy", "0em")
+        .attr("class", "status");
+    this.meter.append("text")
+        .attr("text-anchor", "middle")
+        .attr("dy", "1.55em")
+        .attr("class", "information");
+
+    d3.selectAll('.result_value, .result_label').remove();
+    d3.select('#progress-meter').classed('progress-complete', false);
+    d3.selectAll("#progress-meter text").classed("ready", true);
+    return;
+};
+
+NDTmeter.prototype.meter_movement = function () {
+    var origin = 0,
+        progress = 0,
+        end_angle,
+        start_angle,
+        twoPi = 2 * Math.PI,
+        time_in_progress = new Date().getTime() - this.time_switched;
+
+    if (this.state === "running_s2c" || this.state === "running_c2s") {
+
+        if (this.state === "running_c2s" || this.state === "running_s2c") {
+            progress = twoPi * (time_in_progress / 10000);
+        } else {
+            this.time_switched = new Date().getTime();
+            progress = 0;
+        }
+
+        if (this.state === "running_c2s") {
+            progress = twoPi + -1 * progress;
+            end_angle = this.arc.endAngle(twoPi);
+            start_angle = this.arc.startAngle(progress);
+        } else {
+            end_angle = this.arc.endAngle(progress);
+            start_angle = this.arc.startAngle(origin);
+        }
+    } else if (this.state === "finished_all") {
+        end_angle = this.arc.endAngle(twoPi);
+        start_angle = this.arc.startAngle(origin);
+    } else {
+        end_angle = this.arc.endAngle(origin);
+        start_angle = this.arc.startAngle(origin);
+    }
+    d3.select('.foreground').attr("d", end_angle);
+    d3.select('.foreground').attr("d", start_angle);
+
+    if (this.state === 'finished_all') {
+        return true;
+    }
+
+    return false;
+};
