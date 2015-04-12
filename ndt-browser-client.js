@@ -4,7 +4,7 @@
  */
 
 /*jslint bitwise: true, browser: true, nomen: true, vars: true */
-/*global Uint8Array */
+/*global Uint8Array, WebSocket */
 
 'use strict';
 
@@ -13,16 +13,17 @@ function NDTjs(server, server_port, server_path, callbacks) {
     this.server = server;
     this.server_port = server_port;
     this.server_path = server_path;
-    this.c2s_rate = undefined;
-    this.s2c_rate = undefined;
+    this.results = {
+        c2s_rate: undefined,
+        s2c_rate: undefined
+    };
     this.mlab_server = undefined;
-    this.web100_results = {};
     this.SEND_BUFFER_SIZE = 1048576;
 
     // Someone may want to run this test without callbacks (perhaps for
     // debugging). Since the callbacks are referenced in various places, just
     // create some empty ones if none were specified.
-    if (callbacks === 'undefined') {
+    if (callbacks === undefined) {
         this.callbacks = {
             'onstart': function () { return false; },
             'onchange': function () { return false; },
@@ -299,8 +300,9 @@ NDTjs.prototype.ndt_c2s_test = function () {
         }
         if (state === "WAIT_FOR_TEST_MSG" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_MSG')) {
-            _this.c2s_rate = message_content.msg;
-            _this.logger("C2S rate calculated by server: " + _this.c2s_rate);
+            _this.results.c2s_rate = Number(message_content.msg);
+            _this.logger("C2S rate calculated by server: " +
+                _this.results.c2s_rate);
             state = "WAIT_FOR_TEST_FINALIZE";
             return false;
         }
@@ -394,16 +396,17 @@ NDTjs.prototype.ndt_s2c_test = function (ndt_socket) {
             }
             // Calculation per spec, compared between client and server
             // understanding.
-            _this.s2c_rate = (8 * received_bytes / 1000 /
+            _this.results.s2c_rate = (8 * received_bytes / 1000 /
                 (test_end - test_start));
-            _this.logger("S2C rate calculated by client: " + _this.s2c_rate);
+            _this.logger("S2C rate calculated by client: " +
+                _this.results.s2c_rate);
             _this.logger("S2C rate calculated by server: " +
                 message_content.ThroughputValue);
 
             ndt_socket.send(
                 _this.make_ndt_message(
                     _this.NDT_MESSAGES.indexOf('TEST_MSG'),
-                    String(_this.s2c_rate)
+                    String(_this.results.s2c_rate)
                 )
             );
             return false;
@@ -414,7 +417,7 @@ NDTjs.prototype.ndt_s2c_test = function (ndt_socket) {
             var web100_record = message_content.msg.split(': ');
             var web100_variable = web100_record[0];
             var web100_result = web100_record[1].replace(/(\r\n|\n|\r)/gm, "");
-            _this.web100_results[web100_variable] = web100_result;
+            _this.results[web100_variable] = web100_result;
 
             return false;
         }
@@ -500,7 +503,7 @@ NDTjs.prototype.start_test = function () {
     this.check_browser_support();
 
     this.logger('Test started.  Waiting for connection to server...');
-    this.callbacks.onstart(_this.server);
+    this.callbacks.onstart(this.server);
 
     ndt_socket = this.create_websocket(this.server, this.server_port,
         this.server_path, 'ndt');
@@ -596,7 +599,7 @@ NDTjs.prototype.start_test = function () {
             ndt_socket.close();
 
             _this.callbacks.onchange('finished_all');
-            _this.callbacks.onfinish();
+            _this.callbacks.onfinish(_this.results);
             _this.logger("All tests successfully completed.");
         } else {
             error_message = "No handler for message " + message_type +
