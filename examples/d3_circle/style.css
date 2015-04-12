@@ -54,15 +54,12 @@
 #progress-meter .progress {
 	cursor: wait;
 }
-
 #progress-meter .background {
 	fill: #D6D4D0;
 }
-#progress-meter .foreground {
-	fill: #B1C28E;
-}
+
 #progress-meter .complete {
-	fill: #7F9797;
+	fill: #5BCC9A;
 }
 
 #progress-meter .result_value, #progress-meter .result_label {

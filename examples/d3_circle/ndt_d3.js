@@ -53,13 +53,29 @@ NDTmeter.prototype.create = function () {
         .append("g")
         .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
 
+    var gradient = svg
+        .append("linearGradient")
+        .attr("id", "gradient")
+        .attr("gradientUnits", "userSpaceOnUse")
+        .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+    gradient
+        .append("stop")
+        .attr("offset", "0")
+        .attr("stop-color", "#6A8E7E");
+    gradient
+        .append("stop")
+        .attr("offset", "0.5")
+        .attr("stop-color", "#90C1AC");
+
     this.arc = d3.svg.arc()
         .startAngle(0)
         .endAngle(0)
         .innerRadius(innerRad)
         .outerRadius(outerRad);
     this.meter = svg.append("g")
-        .attr("id", "progress-meter");
+        .attr("id", "progress-meter")
+        .attr("fill", "url(#gradient)");
     this.meter.append("path")
         .attr("class", "background")
         .attr("d", this.arc.endAngle(twoPi));
@@ -81,23 +97,22 @@ NDTmeter.prototype.create = function () {
 };
 
 NDTmeter.prototype.onstart = function (server) {
-    this.reset_meter();
-    var server_name = '(' + server.replace('.measurement-lab.org', '') + ')';
-    this.update_display('Connecting', server_name);
-};
-
-NDTmeter.prototype.onchange = function (returned_message) {
     var _this = this;
-
-    this.state = returned_message;
-    this.time_switched = new Date().getTime();
-    this.update_display(this.NDT_STATUS_LABELS[returned_message], '');
-
     var meter_movement = function () {
         _this.meter_movement();
     };
 
+    this.server_name = server.replace('.measurement-lab.org', '');
+    this.reset_meter();
+    this.update_display('Connecting', this.server_name);
+
     d3.timer(meter_movement);
+};
+
+NDTmeter.prototype.onchange = function (returned_message) {
+    this.state = returned_message;
+    this.time_switched = new Date().getTime();
+    this.update_display(this.NDT_STATUS_LABELS[returned_message], '');
 };
 
 NDTmeter.prototype.onfinish = function (passed_results) {
@@ -178,6 +193,8 @@ NDTmeter.prototype.meter_movement = function () {
         progress = 0,
         end_angle,
         start_angle,
+        progress_label,
+        progress_percentage,
         twoPi = 2 * Math.PI,
         time_in_progress = new Date().getTime() - this.time_switched;
 
@@ -189,6 +206,11 @@ NDTmeter.prototype.meter_movement = function () {
             this.time_switched = new Date().getTime();
             progress = 0;
         }
+
+        progress_label = this.NDT_STATUS_LABELS[this.state];
+        progress_percentage = (time_in_progress < 10000) ?
+                (100 * (time_in_progress / 10000)).toFixed(0) : 100;
+        this.update_display(progress_label, (progress_percentage + "%"));
 
         if (this.state === "running_c2s") {
             progress = twoPi + -1 * progress;
