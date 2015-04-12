@@ -44,8 +44,8 @@ NDTmeter.prototype.create = function () {
     var width = d3.select(this.body_element).style("width").replace(/px/, '');
     var height = d3.select(this.body_element).style("height").replace(/px/, '');
     var twoPi = 2 * Math.PI;
-    var innerRad = (width * 0.3);
-    var outerRad = (width * 0.36);
+    var innerRad = (width * 0.30);
+    var outerRad = (width * 0.37);
 
     var svg = d3.select(this.body_element).append("svg")
         .attr("width", width)
@@ -56,13 +56,12 @@ NDTmeter.prototype.create = function () {
     var gradient = svg
         .append("linearGradient")
         .attr("id", "gradient")
-        .attr("gradientUnits", "userSpaceOnUse")
-        .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+        .attr("gradientUnits", "userSpaceOnUse");
 
     gradient
         .append("stop")
         .attr("offset", "0")
-        .attr("stop-color", "#6A8E7E");
+        .attr("stop-color", "#ABE5CC");
     gradient
         .append("stop")
         .attr("offset", "0.5")
@@ -132,7 +131,8 @@ NDTmeter.prototype.onfinish = function (passed_results) {
                 passed_results.hasOwnProperty(metric_name)) {
 
             if (metric_name !== 'MinRTT') {
-                result_string = Number(passed_results[metric_name] / 1000).toFixed(2);
+                result_string = Number(passed_results[metric_name] /
+                    1000).toFixed(2);
                 result_string += ' Mbps';
             } else {
                 result_string = Number(passed_results[metric_name]).toFixed(2);
@@ -189,28 +189,23 @@ NDTmeter.prototype.reset_meter = function () {
 };
 
 NDTmeter.prototype.meter_movement = function () {
-    var origin = 0,
-        progress = 0,
-        end_angle,
+    var end_angle,
         start_angle,
         progress_label,
-        progress_percentage,
-        twoPi = 2 * Math.PI,
-        time_in_progress = new Date().getTime() - this.time_switched;
+        progress_percentage;
+    var origin = 0;
+    var progress = 0;
+    var twoPi = 2 * Math.PI;
+    var time_in_progress = new Date().getTime() - this.time_switched;
 
     if (this.state === "running_s2c" || this.state === "running_c2s") {
 
-        if (this.state === "running_c2s" || this.state === "running_s2c") {
-            progress = twoPi * (time_in_progress / 10000);
-        } else {
-            this.time_switched = new Date().getTime();
-            progress = 0;
-        }
-
-        progress_label = this.NDT_STATUS_LABELS[this.state];
         progress_percentage = (time_in_progress < 10000) ?
-                (100 * (time_in_progress / 10000)).toFixed(0) : 100;
-        this.update_display(progress_label, (progress_percentage + "%"));
+                (time_in_progress / 10000) : 1;
+        progress = twoPi * progress_percentage;
+        progress_label = this.NDT_STATUS_LABELS[this.state];
+        this.update_display(progress_label,
+            ((progress_percentage * 100).toFixed(0) + "%"));
 
         if (this.state === "running_c2s") {
             progress = twoPi + -1 * progress;
