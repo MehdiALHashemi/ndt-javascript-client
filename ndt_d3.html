@@ -3,14 +3,14 @@
 	<head>
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" charset="utf-8"/>
 		<meta charset="utf-8"/>
-		<link rel="stylesheet" type="text/css" href="style.css"/>
+		<link rel="stylesheet" type="text/css" href="ndt_d3.css"/>
 		<script src="http://d3js.org/d3.v3.min.js"></script>
 		<script src="ndt_d3.js"></script>
-		<script src="/ndt-browser-client.js"></script>
+		<script src="ndt-browser-client.js"></script>
 		<script>
-	 		var server = "utility.mlab.mlab4.iad04.measurement-lab.org";
-	  		var port = "7000";
-	   	 	var path = "/ndt_after_user_privacy_agreement";
+	 		var server = location.host;
+	  		var port = "3001";
+	   	 	var path = "/ndt_protocol";
             var NDT_meter, NDT_client;
             
             function NDTmeter_setup() {
