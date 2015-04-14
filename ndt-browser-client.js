@@ -8,7 +8,7 @@
 
 'use strict';
 
-function NDTjs(server, server_port, server_path, callbacks) {
+function NDTjs(server, server_port, server_path, callbacks, update_interval) {
 
     this.server = server;
     this.server_port = server_port;
@@ -18,6 +18,7 @@ function NDTjs(server, server_port, server_path, callbacks) {
         s2c_rate: undefined
     };
     this.mlab_server = undefined;
+    this.update_interval = update_interval / 1000.0;
     this.SEND_BUFFER_SIZE = 1048576;
 
     // Someone may want to run this test without callbacks (perhaps for
@@ -249,6 +250,8 @@ NDTjs.prototype.ndt_c2s_test = function () {
     var _this = this;
 
     var state = "WAIT_FOR_TEST_PREPARE";
+    var total_sent = 0;
+    var next_callback_time = this.update_interval;
 
     for (i = 0; i < data_to_send.length; i += 1) {
         // All the characters must be printable, and the printable range of
@@ -261,8 +264,18 @@ NDTjs.prototype.ndt_c2s_test = function () {
         // Monitor the buffersize as it sends and refill if it gets too low.
         if (test_connection.bufferedAmount < 8192) {
             test_connection.send(data_to_send);
+            total_sent += data_to_send.length;
         }
-        if (Date.now() / 1000 < test_start + 10) {
+        var curr_time = Date.now() / 1000.0;
+
+        if (_this.update_interval && curr_time > test_start + next_callback_time) {
+            var rate = 8 * (total_sent - test_connection.bufferedAmount) / 1000 / (curr_time - test_start);
+            _this.results.c2s_rate = rate;
+            _this.callbacks.onchange('interval_c2s', _this.results);
+            next_callback_time += _this.update_interval;
+        }
+
+        if (curr_time < test_start + 10) {
             setTimeout(keep_sending_data, 0);
         } else {
             return false;
@@ -279,7 +292,7 @@ NDTjs.prototype.ndt_c2s_test = function () {
             ' in state ' + state);
         if (state === "WAIT_FOR_TEST_PREPARE" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_PREPARE')) {
-            _this.callbacks.onchange('preparing_c2s');
+            _this.callbacks.onchange('preparing_c2s', _this.results);
 
             server_port = Number(message_content.msg);
             test_connection = _this.create_websocket(_this.server, server_port,
@@ -290,7 +303,7 @@ NDTjs.prototype.ndt_c2s_test = function () {
         }
         if (state === "WAIT_FOR_TEST_START" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_START')) {
-            _this.callbacks.onchange('running_c2s');
+            _this.callbacks.onchange('running_c2s', _this.results);
 
             test_start = Date.now() / 1000;
             keep_sending_data();
@@ -308,7 +321,7 @@ NDTjs.prototype.ndt_c2s_test = function () {
         }
         if (state === "WAIT_FOR_TEST_FINALIZE" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_FINALIZE')) {
-            _this.callbacks.onchange('finished_c2s');
+            _this.callbacks.onchange('finished_c2s', _this.results);
 
             state = "DONE";
             return true;
@@ -334,6 +347,7 @@ NDTjs.prototype.ndt_s2c_test = function (ndt_socket) {
         error_message;
     var state = "WAIT_FOR_TEST_PREPARE";
     var received_bytes = 0;
+    var next_callback_time = this.update_interval;
     var _this = this;
 
     /**
@@ -347,7 +361,7 @@ NDTjs.prototype.ndt_s2c_test = function (ndt_socket) {
 
         if (state === "WAIT_FOR_TEST_PREPARE" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_PREPARE')) {
-            _this.callbacks.onchange('preparing_s2c');
+            _this.callbacks.onchange('preparing_s2c', _this.results);
 
             server_port = Number(message_content.msg);
             test_connection = _this.create_websocket(_this.server, server_port,
@@ -369,6 +383,14 @@ NDTjs.prototype.ndt_s2c_test = function (ndt_socket) {
                     hdr_size = 10;
                 }
                 received_bytes += (hdr_size + response_message[3].length);
+
+                var curr_time = Date.now() / 1000.0;
+                if (_this.update_interval && curr_time > test_start + next_callback_time) {
+                    var rate = 8 * received_bytes / 1000 / (curr_time - test_start);
+                    _this.results.s2c_rate = rate;
+                    _this.callbacks.onchange('interval_s2c', _this.results);
+                    next_callback_time += _this.update_interval;
+                }
             };
 
             test_connection.onerror = function (response) {
@@ -381,7 +403,7 @@ NDTjs.prototype.ndt_s2c_test = function (ndt_socket) {
         }
         if (state === "WAIT_FOR_TEST_START" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_START')) {
-            _this.callbacks.onchange('running_s2c');
+            _this.callbacks.onchange('running_s2c', _this.results);
 
             state = "WAIT_FOR_FIRST_TEST_MSG";
             return false;
@@ -423,7 +445,7 @@ NDTjs.prototype.ndt_s2c_test = function (ndt_socket) {
         }
         if (state === "WAIT_FOR_TEST_MSG_OR_TEST_FINISH" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_FINALIZE')) {
-            _this.callbacks.onchange('finished_s2c');
+            _this.callbacks.onchange('finished_s2c', _this.results);
             _this.logger("NDT S2C test is complete: " +  message_content.msg);
             return true;
         }
@@ -449,14 +471,14 @@ NDTjs.prototype.ndt_meta_test = function (ndt_socket) {
     return function (message_type, message_content) {
         if (state === "WAIT_FOR_TEST_PREPARE" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_PREPARE')) {
-            _this.callbacks.onchange('preparing_meta');
+            _this.callbacks.onchange('preparing_meta', _this.results);
 
             state = "WAIT_FOR_TEST_START";
             return false;
         }
         if (state === "WAIT_FOR_TEST_START" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_START')) {
-            _this.callbacks.onchange('running_meta');
+            _this.callbacks.onchange('running_meta', _this.results);
 
             // Send one piece of meta data and then an empty meta data packet
             ndt_socket.send(
@@ -477,7 +499,7 @@ NDTjs.prototype.ndt_meta_test = function (ndt_socket) {
         }
         if (state === "WAIT_FOR_TEST_FINALIZE" &&
                 message_type === _this.NDT_MESSAGES.indexOf('TEST_FINALIZE')) {
-            _this.callbacks.onchange('finished_meta');
+            _this.callbacks.onchange('finished_meta', _this.results);
             _this.logger("NDT META test complete.");
             return true;
         }
@@ -593,12 +615,20 @@ NDTjs.prototype.start_test = function () {
             state = "WAIT_FOR_MSG_RESULTS";
         } else if (state === "WAIT_FOR_MSG_RESULTS" &&
                 message_type === _this.NDT_MESSAGES.indexOf('MSG_RESULTS')) {
+            var lines = message_content.msg.split('\n');
+            for (i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                var record = line.split(': ');
+                var variable = record[0];
+                var result = record[1];
+                _this.results[variable] = result;
+            }
             _this.logger(message_content);
         } else if (state === "WAIT_FOR_MSG_RESULTS" &&
                 message_type === _this.NDT_MESSAGES.indexOf('MSG_LOGOUT')) {
             ndt_socket.close();
 
-            _this.callbacks.onchange('finished_all');
+            _this.callbacks.onchange('finished_all', _this.results);
             _this.callbacks.onfinish(_this.results);
             _this.logger("All tests successfully completed.");
         } else {
